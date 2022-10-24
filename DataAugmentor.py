@@ -6,122 +6,136 @@ from typing import Type
 
 class DataAugmentor:
 	
-	# def __init__(self, demonstrations:Type[DemonstrationsModel], dam:Type[DataAugmentorModel], seed:int = 3):
-	def __init__(self, demonstrations:Type[DemonstrationsModel], dams:list, seed:int = 3):
-	    self.demonstrations = demonstrations
-	    # self.dam = dam
-	    self.dams = dams
-	    self.default_rng = np.random.default_rng(seed)
-	    self.demonstrations = demonstrations
-
+	def __init__(self, demonstrations_model:Type[DemonstrationsModel], augmentation_models:list, seed:int = 3):
+	    self.demonstrations_model = demonstrations_model
+	    self.augmentation_models = augmentation_models
+	    self.default_rng = np.random.default_rng()#seed)
 
 	def build_augmentations(self):
-		for dam in dams:
-			self.build_augmentation(dam)
 
-	def build_augmentation(self, dam:Type[DataAugmentorModel]):
+		# 1. build full numpy matrix
 
-		dam.num_augmentations
+		# get shape of demonstrations
+		num_states, num_features = self.demonstrations_model.states_np.shape
+
+		# get total number of augmentations
+		total_augmentations = sum([aug_model.num_augmentations for aug_model in self.augmentation_models])
+
+		# create an augmentation matrix by repeating the full demonstrations for each augmentation, using np.resize()
+		self.aug_matrix = np.resize( self.demonstrations_model.states_np, (num_states*total_augmentations, num_features) )
+
+		# print(f"demonstrations\n{self.demonstrations_model}")
+
+		print(f"\nself.aug_matrix\n{self.aug_matrix}")
+
+		# XXX TO DO - STORE INDICES OF TRANSFORMER, 99?
 
 
+		
+		# print(f"num_states {num_states}, num_features {num_features}, total_augmentations {total_augmentations}")
+		# print("\n",self.demonstrations_model.states_np,"\n",self.aug_matrix)
 
-		if dam.add_noise_gaussian:
+		# 2. iterate through each augmentation
+
+		# keep track of index
+		curr_index = 0 
+		for ind, aug_model in enumerate(self.augmentation_models):
+			# print("\n\n",ind, aug_model)
+
+			# calculate the slice of the matrix to operate on
+			end_index = curr_index + (num_states*aug_model.num_augmentations)
+
+			# select the slice of the full matrix for this augmentation
+			augmentation_slice = self.aug_matrix[curr_index:end_index,:]
+
+			# select the slice of the full matrix for this augmentation
+			self.build_kiwi_augmentation(aug_model, augmentation_slice)
+			
+			# update index for next increment
+			curr_index = end_index
+
+		print(f"\nself.aug_matrix after\n{self.aug_matrix}")
+
+
+	def build_kiwi_augmentation(self, aug_model:Type[DataAugmentorModel], aug_slice):
+
+		# get shape of slice to be used in augmentations
+		num_states, num_features = aug_slice.shape
+
+		# kiwi: the first X columns are continuous, the remaining are categorical
+		
+		# print(aug_slice)
+
+		if aug_model.add_noise_gaussian:
+			# generate noise
+			
+			gaus_noise = self.default_rng.normal(loc=0.0, scale=aug_model.GAUSSIAN_SCALE, size=(num_states, self.demonstrations_model.NUM_CONTINOUS))
+			print(f"\ngaus_noise\n{gaus_noise}")
+
+			# add noise to the array
+			aug_slice[:,0:self.demonstrations_model.NUM_CONTINOUS] += gaus_noise
+			
+		if aug_model.add_noise_uniform:
+			# generate noise 
+			
+			uniform_noise = self.default_rng.uniform(low=aug_model.UNIFORM_LOW, high=aug_model.UNIFORM_HIGH, size=(num_states, self.demonstrations_model.NUM_CONTINOUS))
+
+			print(f"\nuniform_noise\n{uniform_noise}")
+
+			# add noise to the array
+			aug_slice[:,0:self.demonstrations_model.NUM_CONTINOUS] += uniform_noise
+
+		if aug_model.add_scaling:
+			
+			# generate scaling amplitude 
+			ras_noise = self.default_rng.uniform(low=aug_model.RAS_LOW, high=aug_model.RAS_HIGH, size=(num_states, self.demonstrations_model.NUM_CONTINOUS))
+
+			print(f"\nras_noise\n{ras_noise}")
+
+			# add noise to the array
+			aug_slice[:,0:self.demonstrations_model.NUM_CONTINOUS] *= ras_noise
+			
+		if aug_model.add_state_switch:
+			print(f"\nstate_switch\n")
 			pass
-		if dam.add_noise_uniform:
+
+		if aug_model.add_state_mixup:
+			print(f"\nstate_mixup\n")
+			episodeindices = list(self.demonstrations_model.episode_lengths.values())
+			cumsum = np.cumsum(episodeindices) - 1
+			mixup = np.zeros( (self.demonstrations_model.num_states,self.demonstrations_model.NUM_CONTINOUS) )
+			mixup[0:-1,:] = aug_slice[1:self.demonstrations_model.num_states,:self.demonstrations_model.NUM_CONTINOUS]
+			mixup[cumsum,:] = 0
+			mixup = np.resize(mixup, (len(mixup)*aug_model.num_augmentations,mixup.shape[1]))
+			print("mixup\n",mixup)
+			aug_slice[:,0:self.demonstrations_model.NUM_CONTINOUS] += mixup
+
+
+		if aug_model.add_adversarial_state_training:
+			print(f"\nadversarial\n")
 			pass
-		if dam.add_scaling:
-			pass
-		if dam.add_dropout_continuous:
-			pass
-		if dam.add_semantic_dropout:
-			pass
-		if dam.add_state_switch:
-			pass
-		if dam.add_state_mixup:
-			pass
-		if dam.add_adversarial_state_training:
-			pass
+
+		if aug_model.add_dropout_continuous:
+			
+			print("aug_model.add_dropout_continuous")
+			dropout_continuous_indices = self.default_rng.choice(a=self.demonstrations_model.NUM_CONTINOUS, 
+				size=(num_states, int(self.demonstrations_model.NUM_CONTINOUS*aug_model.DROPOUT_RATE_CONTINUOUS)))
+			
+			print(f"\ndropout_continuous.T\n{dropout_continuous_indices.T}")
+
+			# aug_slice[:,dropout_continuous_indices] = 0 
+			aug_slice[np.arange(num_states),dropout_continuous_indices.T] = 0 
 
 
+		if aug_model.add_semantic_dropout:
+			print("aug_model.add_semantic_dropout")
+			
+			# generate dropout indices for continuous features
+			dropout_semantic_indices = self.default_rng.choice(a=np.arange(self.demonstrations_model.NUM_CONTINOUS,num_features), 
+				size=(num_states,int(self.demonstrations_model.NUM_CATEGORICAL*aug_model.DROPOUT_RATE_CATEGORICAL)))
 
+			print(f"\ndropout_semantic_indices.T\n{dropout_semantic_indices.T}")
 
-	def get_gaussian_noise(self):
-		pass
-    	# return self.default_rng.normal()
-    	
-
-
-	# TODO: ALL NUMBERS ARE HARD-CODED
-	# TODO: THIS IS A WORK IN PROGRESS
-	def data_augmentation(self, dems, d_type=None, a_type="gauss", with_noise=True):
-	    """
-	    Data augmentation. The augmentation is not done on the semantic map
-	    """
-	    scale_gaus = 0.01
-
-	    AUG_DIM = 28 # first 28 are continuous, after that categorical
-	    STATE_DIM = 153
-	    NUM_AUGMENTATION = 3
-
-	    WITH_SEMANTIC_DROPOUT = False
-	    semantic_dropout_rate = 0.3
-
-
-	    # for each row
-	    for i in range(len(dems["states"])):
-
-	        # for each augmentation // do these augmentations
-	        for a in range(NUM_AUGMENTATION):
-	            
-	            # dems is a list:
-	            #   dems[states 0][each state   // list    // 0...n][global_in]
-	            #   dems[actions 1][each action // integer // 0...n]
-	            
-	            # extract the specific state, convert to numpy array
-	            state = dems["states"][i]
-	            aug_state = deepcopy(state["global_in"])
-	            aug_state = np.asarray(aug_state)
-
-	            # extract the action
-	            aug_action = deepcopy(dems['actions'][i])
-
-	            # (weird)... if no noise, append a clone without any augmentation then continue
-	            if not with_noise:
-	                dems["states"].append(dict(global_in=aug_state))
-	                dems["actions"].append(aug_action)
-	                continue
-
-	            # Get noise for just the continuous information, the first AUG_DIM columns
-	            noise = np.random.normal(0, scale_gaus, (AUG_DIM))
-
-	            # Concat noise with zeros for the categorical info
-	            noise = np.concatenate([noise, np.zeros(STATE_DIM - AUG_DIM)])
-
-	            # dropout a column... currently only applied to categorical
-	            if WITH_SEMANTIC_DROPOUT:
-
-	                # randomly select indices (int(125*semantic_dropout_rate)) in range [0,125)... note, hardcoded 125, this is just the size of the categorical info
-	                dropout_indexes = np.random.choice(125, int(125*semantic_dropout_rate))
-	            
-	                # what is this? this suggests that the item at index 27 or 28 is a list or array? not sure how this works with np.asarray from above (which is deprecated without specifying as object type)
-	                semantic_map = aug_state[-125:]
-
-	                # dropout values by setting to zero
-	                semantic_map[dropout_indexes] = 0.
-
-	            # Be carfeul at the transformer mask value
-	            correction = np.ones_like(aug_state)
-	            correction[np.where(aug_state == 99)] = 0  # correct noise to 0 if it is masked
-	            noise *= correction
-
-	            aug_state += noise
-
-	            dems["states"].append(dict(global_in=aug_state))
-	            dems["actions"].append(aug_action)
-
-	            # XXX: to do shuffle
-
-	    return dems
-
+			aug_slice[np.arange(num_states),dropout_semantic_indices.T] = 0 
 
 

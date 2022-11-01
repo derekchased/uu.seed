@@ -6,7 +6,16 @@ from dataaugmentations import DemonstrationsModel
 class DataAugmentor:
 	
 	def __init__(self, demonstrations_model, augmentations_model, seed = 3):
+		# demonstrations_model holds the original demonstrations.txt object, 
+		# numpy version of states and actions, and will hold the augmentation 
+		# data which  can be concatenated with the original data to have a
+		# full data set
 	    self.dems_model = demonstrations_model
+
+	    # augmentations_model is a list of augmentation objects. In each object
+	    # can specify a combination of augmentations to perform at once, and
+	    # how many times per state to do it. 
+	    # 
 	    self.augs_model = augmentations_model
 	    self.rng = np.random.default_rng(seed)
 
@@ -203,106 +212,41 @@ class DataAugmentor:
 			aug_slice[indices_transformer] = 99
 
 		if aug_model.add_adversarial_state_training:
-			#print(f"\nadversarial\n")
 			pass
 
 		if aug_model.add_dropout_continuous:
 			
+			# generate dropout indices for continuous features (columns 0 through 27)
 			dropout_continuous_indices = self.rng.choice(a=NUM_CONTINOUS, 
 				size=(num_states_augs, 
 					int(NUM_CONTINOUS*aug_model.DROPOUT_RATE_CONTINUOUS)))
 			
-			# aug_slice[:,dropout_continuous_indices] = 0 
+			# dropout indices from each state by setting to 0
 			aug_slice[np.arange(num_states_augs),dropout_continuous_indices.T] = 0 
-
-			print(f"\ndropout_semantic_indices.T\n{dropout_continuous_indices.T.shape}\n{dropout_continuous_indices.T}")
 
 			# for debugging
 			augmentation_obj = (np.arange(num_states_augs),dropout_continuous_indices.T)
 
 		if aug_model.add_semantic_dropout:
-			#print("aug_model.add_semantic_dropout")
-			
-			# generate dropout indices for continuous features
+
+			# generate dropout indices for semantic features (columns 28 through 153)
 			dropout_semantic_indices = self.rng.choice(
 				a=np.arange(NUM_CONTINOUS,num_features), 
 				size=(num_states_augs,
 					int(self.dems_model.NUM_CATEGORICAL*aug_model.DROPOUT_RATE_CATEGORICAL)))
 
-			# print(f"\ndropout_semantic_indices.T\n{dropout_semantic_indices.T.shape}\n{dropout_semantic_indices.T}")
+			# store indices where element is 99, set these back to 99 after
+			# the operation
+			indices_transformer = aug_slice == 99
 
+			# dropout indices from each state by setting to 0
 			aug_slice[np.arange(num_states_augs),dropout_semantic_indices.T] = 0 
+
+			# set elements back to 99
+			aug_slice[indices_transformer] = 99
 
 			# for debugging
 			augmentation_obj = (np.arange(num_states_augs),dropout_semantic_indices.T)
 
 		# for debugging
 		aug_model.augmentation_obj = augmentation_obj		
-
-def state_augmentation_np(aug_slice, num_augmentations, episode_lengths, augmentation_np_shape, a, b, seed = 3):
-	"""
-    Rows become a weighted sum of the current row and the next row. 
-    Assumes an input array (aug_slice) containing states from multiple episodes.
-    The last row of an episode does not add to the first row of the next episode.
-
-    Parameters:
-		aug_slice(ndarray): 
-			an existing input array which this augmentation will be applied to, 
-			ie, the state array
-		num_augmentations(int):			
-			number of augmentations to perform
-		episode_lengths(dict{int:int}):	
-			number of states in each episode,the dict has keys with
-			episode num and values of episode length, 
-			ie, {0:3, 1:7, 2:1, 3:11}
-		augmentation_np_shape(tuple(int,int)):	
-			the shape of the array (it might be smaller than the 
-			full state array, ie, only act on the cumulative 
-			features which are in the first 28 columns)
-		a(float):						
-			first parameter for beta distribution
-		b(float):						
-			second parameter for beta distribution
-
-    Returns:
-    	None: Acts directly on the aug_slice
-    """
-
-	# Convert dict of episode lengths to list
-	episodeindices = list(episode_lengths.values())
-
-	# Convert into a cumulative sum
-	cumsum = np.cumsum(episodeindices)
-
-	## HERE
-	# Convert into a boolean array
-	cumsum_bool = np.full( (len(cumsum),), False)
-	cumsum_bool[cumsum-1] = True
-	
-	# Create array to store the augmentation
-	augmentation_np = np.zeros( augmentation_np_shape )
-
-	# Copy the input into the augmentation_np array but clip the first row
-	augmentation_np[0:-1,:] = aug_slice[1:augmentation_np_shape[0],:augmentation_np_shape[1]]
-	
-
-	# Set the first state of each episode (not including the first episode) 
-	# to zero so it does not get added to the last state of the previous episode
-	augmentation_np[cumsum-1,:] = 0
-	
-	# Extend the array to match the number of requested augmentations
-	augmentation_np = np.resize(augmentation_np, (len(augmentation_np)*num_augmentations,augmentation_np.shape[1]))
-
-	# Create weights for the augmentation_np
-	beta_distr = np.default_rng(seed).beta(a, b, size=augmentation_np.shape)
-
-	# Modify weights so the last state of an episode is fully weighted 
-	# since it is not added to anything
-
-	beta_distr
-	
-	aug_slice[:,0:augmentation_np_shape[1]] += augmentation_np
-
-
-
-

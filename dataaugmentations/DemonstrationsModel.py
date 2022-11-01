@@ -26,12 +26,7 @@ class DemonstrationsModel:
 			self.states = [state['global_in'] for state in self.demonstrations["states"]]
 			self.episode_lengths = defaultdict(int)
 			for state in self.demonstrations["states"]:
-				if(hasattr(state,'episode')):
-					print("yes")
-					self.episode_lengths[ state['episode'] ] += 1
-				else:
-					print("no")
-			# print(f"self.episode_lengths {self.episode_lengths}")
+				self.episode_lengths[ state['episode'] ] += 1
 			self.actions = [action for action in self.demonstrations["actions"]]
 			self.states_np = np.asarray(self.states)
 			self.actions_np = np.asarray(self.actions)

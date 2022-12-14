@@ -1,0 +1,45 @@
+kiwi:
+
+  meta:
+    TRAIN_SCENE: "with_component1.unity"
+    DEMONSTRATIONS: "demonstrations_exp2_1205.txt"
+    NUM_SAMPLES: "15000"
+    ID: "kiwi_1212"
+    DESCIPTION: "Removed garage. Added obstacles. No need for button."
+
+  defaults:
+    
+    training:
+      MAX_COMBINATIONS: 3
+      NUM_MODELS: 5
+      NUM_AUGS: 3
+      PATH: "../unity-testing-demo-env/Assets/Resources"
+      MODEL_PATH: "DaggerModels"
+      DEMONSTRATIONS: "demonstrations_exp2_1205"
+      DEMONSTRATIONS_PATH: "DaggerDemonstrations"
+      TRAINER: "trainer.txt"
+      TRAINER_PATH: "DaggerDemonstrations"
+      STATISTICS: "statistics.txt"
+      STATISTICS_PATH: "DaggerDemonstrations"
+      MODEL_NAME: "kiwi" # default model name, will take name of experiment below
+      nTraining: 0
+      epochs: 300
+      ACTION_TYPE: "discrete"
+      TRAINING_AGENTS: 1
+      ACTION_SIZE: 7
+      demonstration_ratios:
+        - 1
+        - .9
+        - .8
+        - .7
+        - .6
+        - .5
+
+      gaussian_scale:
+        - 0.00003
+        - 0.0003
+        - 0.003
+        - 0.03
+    
+    experiments:
+      num_augs: 3

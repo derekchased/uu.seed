@@ -1,12 +1,11 @@
 
 import numpy as np
-from DataAugmentorModel import DataAugmentorModel
-from DemonstrationsModel import DemonstrationsModel
-from typing import Type
+from dataaugmentations import DataAugmentorModel
+from dataaugmentations import DemonstrationsModel
 
 class DataAugmentor:
 	
-	def __init__(self, demonstrations_model:Type[DemonstrationsModel], augmentation_models:list, seed:int = 3):
+	def __init__(self, demonstrations_model, augmentation_models, seed = 3):
 	    self.demonstrations_model = demonstrations_model
 	    self.augmentation_models = augmentation_models
 	    self.default_rng = np.random.default_rng()#seed)
@@ -22,11 +21,11 @@ class DataAugmentor:
 		total_augmentations = sum([aug_model.num_augmentations for aug_model in self.augmentation_models])
 
 		# create an augmentation matrix by repeating the full demonstrations for each augmentation, using np.resize()
-		self.aug_matrix = np.resize( self.demonstrations_model.states_np, (num_states*total_augmentations, num_features) )
+		self.demonstrations_model.augmentation_matrix = np.resize( self.demonstrations_model.states_np, (num_states*total_augmentations, num_features) )
 
 		# print(f"demonstrations\n{self.demonstrations_model}")
 
-		print(f"\nself.aug_matrix\n{self.aug_matrix}")
+		print(f"\nself.demonstrations_model.augmentation_matrix\n{self.demonstrations_model.augmentation_matrix}")
 
 		# XXX TO DO - STORE INDICES OF TRANSFORMER, 99?
 
@@ -46,7 +45,7 @@ class DataAugmentor:
 			end_index = curr_index + (num_states*aug_model.num_augmentations)
 
 			# select the slice of the full matrix for this augmentation
-			augmentation_slice = self.aug_matrix[curr_index:end_index,:]
+			augmentation_slice = self.demonstrations_model.augmentation_matrix[curr_index:end_index,:]
 
 			# select the slice of the full matrix for this augmentation
 			self.build_kiwi_augmentation(aug_model, augmentation_slice)
@@ -54,10 +53,10 @@ class DataAugmentor:
 			# update index for next increment
 			curr_index = end_index
 
-		print(f"\nself.aug_matrix after\n{self.aug_matrix}")
+		print(f"\nself.demonstrations_model.augmentation_matrix after\n{self.demonstrations_model.augmentation_matrix}")
 
 
-	def build_kiwi_augmentation(self, aug_model:Type[DataAugmentorModel], aug_slice):
+	def build_kiwi_augmentation(self, aug_model, aug_slice):
 
 		# get shape of slice to be used in augmentations
 		num_states, num_features = aug_slice.shape

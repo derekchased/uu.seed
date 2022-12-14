@@ -1,7 +1,7 @@
 
 import numpy as np
-from dataaugmentations import DataAugmentorModel
-from dataaugmentations import DemonstrationsModel
+from dataaugmentations.DataAugmentorModel import DataAugmentorModel
+from dataaugmentations.DemonstrationsModel import DemonstrationsModel
 
 class DataAugmentor:
 	
@@ -56,6 +56,13 @@ class DataAugmentor:
 			self.dems_model.actions_np, 
 			num_states*total_augmentations)
 
+		# break early if no augmentations (this is how we create a baseline model)
+		# Todo: improve this functionality because it's kind of a hack
+		# Todo: this should be moved into the for loop below
+		# if (total_augmentations == 0):
+		# 	self.dems_model.augmentation_states = augmentation_states
+		# 	return
+
 		# STORE INDICES OF TRANSFORMER elements to set back to 99 later
 		indices_transformer = augmentation_states == 99
 		
@@ -66,6 +73,14 @@ class DataAugmentor:
 		# iterate through each requested augmentation model and act on the 
 		# numpy array
 		for ind, aug_model in enumerate(self.augs_model):
+
+			# this is a baseline model because it has no augmentations. Treat differently
+			if not (aug_model.add_noise_gaussian or aug_model.add_noise_uniform or
+					aug_model.add_dropout_continuous or aug_model.add_semantic_dropout or
+					aug_model.add_state_mixup):# or
+					# aug_model.add_state_switch or aug_model.add_adversarial_state_training):
+				self.dems_model.augmentation_states = augmentation_states
+				continue
 
 			# calculate the slice of the matrix to operate on
 			end_index = curr_index + (num_states*aug_model.num_augs)
@@ -162,9 +177,9 @@ class DataAugmentor:
 			# multiply the array by the scaling factor
 			aug_slice[:,0:NUM_CONTINOUS] *= augmentation_obj
 
-		if aug_model.add_state_switch:
+		# if aug_model.add_state_switch:
 			#print(f"\nstate_switch\n")
-			pass
+			# pass
 
 		if aug_model.add_state_mixup:
 
@@ -211,8 +226,8 @@ class DataAugmentor:
 			# set elements back to 99
 			aug_slice[indices_transformer] = 99
 
-		if aug_model.add_adversarial_state_training:
-			pass
+		# if aug_model.add_adversarial_state_training:
+		# 	pass
 
 		if aug_model.add_dropout_continuous:
 			
@@ -249,4 +264,4 @@ class DataAugmentor:
 			augmentation_obj = (np.arange(num_states_augs),dropout_semantic_indices.T)
 
 		# for debugging
-		aug_model.augmentation_obj = augmentation_obj		
+		# aug_model.augmentation_obj = augmentation_obj		
